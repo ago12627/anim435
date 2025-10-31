@@ -87,7 +87,7 @@ def apply_reference(asset_field, version_field, *args):
 Set up UI window with a dropdown for assets and versions.
 """
 def populate_window():
-    # Clear any previous reference selection window
+    # Clear any previous reference manager window
     if cmds.window("reference_manager_window", exists=True):
         cmds.deleteUI("reference_manager_window")
     
