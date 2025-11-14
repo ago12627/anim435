@@ -1,14 +1,39 @@
 import os
 import maya.cmds as cmds
+import logging
 from functools import partial
+
+"""
+Logging configuration
+
+"""
+logger = logging.getLogger("ReferenceManager")
+FORMAT = "[%(asctime)s][%(name)s][%(lineno)s][%(levelname)s] %(msg)s"
+logging.basicConfig(filename='log.txt',
+                    level=logging.INFO,
+                    format=FORMAT)
+formatter = logging.Formatter(FORMAT)
+
+if not logger.handlers:
+    script_dir = os.path.join(cmds.workspace(q=True, rd=True), "scripts")
+    log_path = os.path.join(script_dir, "log.txt")
+    
+    file_handler = logging.FileHandler(log_path, mode='w')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    
+logger.info(f"Log file created at: {log_path}")
+
 
 """
 Read asset directory from environment variable 'ASSET_DIR' or from scenes folder in current directory.
 
 """
 ASSET_DIR = os.getenv('ASSET_DIR')
+
 if not ASSET_DIR:
-    cmds.warning("ASSET_DIR not set. Defaulting to current scenes directory.")
+    logger.warning("ASSET_DIR not set. Defaulting to current scenes directory.")
     ASSET_DIR = os.path.join(cmds.workspace(q=True, rd=True), "scenes")
 
 
@@ -19,18 +44,21 @@ Returns dictionary of assets with their versions.
 
 """
 def get_asset_versions(*args):
-    files = cmds.getFileList(folder=ASSET_DIR, filespec='*.mb')
-    assets = {}
-    
-    for f in files:
-        parts = f.split('.')
-        if len(parts) >= 3 and parts[1] == 'model':
-            asset = parts[0]
-            version = parts[2]
-            assets.setdefault(asset, []).append(version)
+    try:
+        files = cmds.getFileList(folder=ASSET_DIR, filespec='*.mb')
+        assets = {}
         
-    return assets
-    
+        for f in files:
+            parts = f.split('.')
+            if len(parts) >= 3 and parts[1] == 'model':
+                asset = parts[0]
+                version = parts[2]
+                assets.setdefault(asset, []).append(version)
+            
+        return assets
+        
+    except:
+        logger.error("Could not get asset files in directory. Please check that 'ASSET_DIR' or default scenes directory exists.")
     
 """
 Updates version dropdown in UI window based on the selected asset.
@@ -62,7 +90,7 @@ def apply_reference(asset_field, version_field, *args):
     filepath = os.path.join(ASSET_DIR, filename)
     
     if not os.path.exists(filepath):
-        cmds.warning(f"File not found: {filepath}")
+        logger.error(f"File not found: {filepath}")
         return
     
     ref_namespace = asset
@@ -77,10 +105,10 @@ def apply_reference(asset_field, version_field, *args):
             break
             
     if ref_node:
-        print(f"Replacing reference for '{ref_namespace}' with '{filename}'")
+        logger.info(f"Replacing reference for '{ref_namespace}' with '{filename}'")
         cmds.file(filepath, loadReference=ref_node)
     else:
-        print(f"Creating new reference for '{ref_namespace}' with '{filename}'")
+        logger.info(f"Creating new reference for '{ref_namespace}' with '{filename}'")
         cmds.file(filepath, reference=True, namespace=ref_namespace)
 
 """
@@ -96,7 +124,7 @@ def populate_window():
     
     assets_dict = get_asset_versions()
     if not assets_dict:
-        cmds.warning(f"No .mb files found in '{ASSET_DIR}'.")
+        logger.warning(f"No .mb files found in '{ASSET_DIR}'.")
     
     asset_names = sorted(assets_dict.keys())
     
